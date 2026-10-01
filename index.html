@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="EduFee - Complete Android App for School, Batch, Student & Monthly Fee Management">
+  <title>EduFee - School & Monthly Fee Manager</title>
+  
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="manifest" href="/manifest.json">
+  
+  <!-- Premium Android Material Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,500;1,700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+</head>
+<body class="phone-frame-mode">
+  <!-- Desktop Device Container & Frame (Can be toggled) -->
+  <div class="app-viewport-wrapper" id="viewportWrapper">
+    <!-- Desktop Top Control Bar for previewing on desktop -->
+    <header class="desktop-preview-toolbar" id="desktopToolbar">
+      <div class="toolbar-brand">
+        <span class="android-robot-badge">🤖 Android App</span>
+        <span class="toolbar-title">EduFee • School & Student Fee Manager</span>
+      </div>
+      <div class="toolbar-actions">
+        <button class="toolbar-btn" id="btnToggleFrame" title="Toggle between Android Phone Frame and Full-Screen Web View">
+          <span class="btn-icon">📱</span>
+          <span class="btn-label" id="toggleFrameLabel">Full Screen View</span>
+        </button>
+        <button class="toolbar-btn secondary" id="btnInstallApp" title="Install App / Android Guidance">
+          <span class="btn-icon">⬇️</span>
+          <span class="btn-label">Install on Phone</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Simulated Android Smartphone Chassis -->
+    <main class="phone-chassis" id="phoneChassis">
+      <!-- Android Hardware Status Bar -->
+      <div class="android-status-bar">
+        <div class="status-left">
+          <span class="status-clock" id="statusClock">09:41</span>
+        </div>
+        <div class="status-center">
+          <div class="front-camera-punchhole"></div>
+        </div>
+        <div class="status-right">
+          <span class="status-icon" title="5G Network">5G</span>
+          <span class="status-icon" title="Wi-Fi">📶</span>
+          <span class="status-battery">
+            <span class="battery-level"></span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Real Mobile App Shell -->
+      <div class="app-screen" id="appScreen">
+        <!-- Sticky Dynamic Top App Bar -->
+        <header class="mobile-app-header" id="mobileAppHeader"></header>
+
+        <!-- Main Scrollable Content Area -->
+        <main class="mobile-content-container" id="mainContent"></main>
+
+        <!-- Android Floating Action Button -->
+        <div class="fab-container" id="fabContainer"></div>
+
+        <!-- Android Material 3 Bottom Navigation Bar -->
+        <nav class="android-bottom-nav" id="bottomNav"></nav>
+      </div>
+
+      <!-- Android Gesture Pill / Home Bar -->
+      <div class="android-gesture-bar">
+        <div class="gesture-pill"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Global Modal Mount Point for Payments, Add Student/Batch, and Printable Receipts -->
+  <div class="modal-overlay hidden" id="modalOverlay">
+    <div class="bottom-sheet" id="modalSheet"></div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Application Bootstrap -->
+  <script type="module" src="/js/app.js"></script>
+
+  <!-- PWA Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+          console.log('SW registration note:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

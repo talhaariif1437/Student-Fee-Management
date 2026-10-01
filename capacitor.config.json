@@ -1,0 +1,8 @@
+{
+  "appId": "com.edufee.schoolmanager",
+  "appName": "EduFee",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
