@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+www/
+dist/
+build/
+*.apk
+*.aab
+
+# Android build cache
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db

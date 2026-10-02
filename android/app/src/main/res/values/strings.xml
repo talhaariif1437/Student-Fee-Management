@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EduFee</string>
+    <string name="title_activity_main">EduFee</string>
+    <string name="package_name">com.edufee.schoolmanager</string>
+    <string name="custom_url_scheme">com.edufee.schoolmanager</string>
+</resources>

@@ -1,28 +1,28 @@
 // Service Worker for EduFee Android App
-const CACHE_NAME = 'edufee-cache-v1';
+const CACHE_NAME = 'edufee-cache-v2';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/css/main.css',
-  '/css/components.css',
-  '/css/responsive.css',
-  '/js/app.js',
-  '/js/data.js',
-  '/js/storage.js',
-  '/js/icons.js',
-  '/js/utils.js',
-  '/js/components/header.js',
-  '/js/components/bottomNav.js',
-  '/js/components/fab.js',
-  '/js/components/dashboardView.js',
-  '/js/components/batchesView.js',
-  '/js/components/studentsView.js',
-  '/js/components/feeLedgerView.js',
-  '/js/components/defaultersView.js',
-  '/js/components/settingsView.js',
-  '/js/components/modals.js',
-  '/public/favicon.svg'
+  './',
+  './index.html',
+  './manifest.json',
+  './css/main.css',
+  './css/components.css',
+  './css/responsive.css',
+  './js/app.js',
+  './js/data.js',
+  './js/storage.js',
+  './js/icons.js',
+  './js/utils.js',
+  './js/components/header.js',
+  './js/components/bottomNav.js',
+  './js/components/fab.js',
+  './js/components/dashboardView.js',
+  './js/components/batchesView.js',
+  './js/components/studentsView.js',
+  './js/components/feeLedgerView.js',
+  './js/components/defaultersView.js',
+  './js/components/settingsView.js',
+  './js/components/modals.js',
+  './public/favicon.svg'
 ];
 
 self.addEventListener('install', (event) => {
@@ -64,7 +64,7 @@ self.addEventListener('fetch', (event) => {
         }).catch(() => {});
         return cachedResponse;
       }
-      return fetch(event.request).catch(() => caches.match('/index.html'));
+      return fetch(event.request).catch(() => caches.match('./index.html'));
     })
   );
 });
