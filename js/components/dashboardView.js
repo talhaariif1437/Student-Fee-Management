@@ -161,7 +161,7 @@ export function renderDashboardView(state, actions) {
       ` : `
         <div style="display: flex; flex-direction: column; gap: 8px;">
           ${recentPayments.map(p => {
-            const student = students.find(s => s.id === p.studentId) || { name: 'Student', rollNo: 'N/A' };
+            const student = students.find(s => String(s.id).trim() === String(p.studentId).trim()) || { name: 'Student', rollNo: 'N/A' };
             return `
               <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--surface-bg); border-radius: var(--radius-sm);">
                 <div>

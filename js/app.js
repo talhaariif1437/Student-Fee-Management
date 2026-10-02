@@ -16,7 +16,8 @@ import {
   openAddStudentModal,
   openAddBatchModal,
   openEditSchoolModal,
-  openStudentLedgerModal
+  openStudentLedgerModal,
+  openQuickPayModal
 } from './components/modals.js';
 
 class App {
@@ -87,7 +88,7 @@ class App {
     const { students, feeRecords, activeMonth, activeYear } = this.state;
     let count = 0;
     students.forEach(student => {
-      const record = feeRecords.find(r => r.studentId === student.id && r.month === activeMonth && r.year === activeYear);
+      const record = feeRecords.find(r => String(r.studentId) === String(student.id) && Number(r.month) === Number(activeMonth) && Number(r.year) === Number(activeYear));
       const baseFee = student.monthlyFee || 0;
       const discount = record ? (record.discount || 0) : (student.discount || 0);
       const fine = record ? (record.fine || 0) : 0;
@@ -296,53 +297,36 @@ class App {
         }
       },
 
-      onOpenCollectFee: (studentId) => {
+      onOpenCollectFee: (studentId, targetMonth = null, targetYear = null) => {
         openCollectFeeModal(this.state, studentId, (record) => {
           this.saveFeeRecord(record);
-        });
+        }, targetMonth, targetYear);
       },
 
       onQuickPay: (studentId) => {
-        const student = this.state.students.find(s => s.id === studentId);
-        if (!student) return;
-        const { activeMonth, activeYear } = this.state;
-        const existingRecord = this.state.feeRecords.find(r => r.studentId === student.id && r.month === activeMonth && r.year === activeYear);
-
-        const baseFee = student.monthlyFee || 0;
-        const discount = existingRecord ? (existingRecord.discount || 0) : (student.discount || 0);
-        const fine = existingRecord ? (existingRecord.fine || 0) : 0;
-        const finalDue = existingRecord ? existingRecord.finalAmount : Math.max(0, baseFee - discount + fine);
-
-        const record = {
-          id: existingRecord ? existingRecord.id : `fee-${student.id}-${activeYear}-${activeMonth}`,
-          studentId: student.id,
-          month: activeMonth,
-          year: activeYear,
-          baseAmount: baseFee,
-          discount,
-          fine,
-          finalAmount: finalDue,
-          paidAmount: finalDue,
-          status: 'PAID',
-          paymentDate: new Date().toISOString().slice(0, 10),
-          paymentMode: 'Cash',
-          receiptNo: existingRecord?.receiptNo || generateReceiptNo(activeYear, activeMonth),
-          remarks: 'Quick 1-tap cash settlement'
-        };
-
-        this.saveFeeRecord(record);
+        openQuickPayModal(this.state, studentId, (record) => {
+          this.saveFeeRecord(record);
+        });
       },
 
       onOpenReceipt: (recordId) => {
         openReceiptModal(this.state, recordId);
       },
 
-      onViewStudentLedger: (studentId) => {
-        openStudentLedgerModal(this.state, studentId, (stdId) => {
-          openCollectFeeModal(this.state, stdId, (record) => {
-            this.saveFeeRecord(record);
-          });
-        });
+      onViewStudentLedger: (studentId, targetYear = null) => {
+        openStudentLedgerModal(
+          this.state,
+          studentId,
+          (stdId, m, y) => {
+            openCollectFeeModal(this.state, stdId, (record) => {
+              this.saveFeeRecord(record);
+            }, m, y);
+          },
+          (recordId) => {
+            openReceiptModal(this.state, recordId);
+          },
+          targetYear
+        );
       },
 
       onSearchFee: (query) => {

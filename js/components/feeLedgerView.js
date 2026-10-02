@@ -27,7 +27,7 @@ export function renderFeeLedgerView(state, actions) {
 
   // Compile monthly records for all students
   const studentRows = students.map(student => {
-    const record = feeRecords.find(r => r.studentId === student.id && r.month === activeMonth && r.year === activeYear);
+    const record = feeRecords.find(r => String(r.studentId) === String(student.id) && Number(r.month) === Number(activeMonth) && Number(r.year) === Number(activeYear));
     const baseFee = student.monthlyFee || 0;
     const discount = record ? (record.discount || 0) : (student.discount || 0);
     const fine = record ? (record.fine || 0) : 0;
@@ -216,22 +216,28 @@ export function renderFeeLedgerView(state, actions) {
               ` : ''}
 
               <!-- Action buttons -->
-              <div class="fee-card-actions">
+              <div class="fee-card-actions" style="display: flex; flex-wrap: wrap; gap: 6px;">
                 ${status !== 'PAID' ? `
-                  <button class="btn-action primary btn-collect-payment" data-student-id="${student.id}">
+                  <button class="btn-action primary btn-collect-payment" data-student-id="${student.id}" style="flex: 1.2; min-width: 100px;">
                     ${getIcon('dollar', 14)} Collect Fee
                   </button>
-                  <button class="btn-action receipt-btn btn-quick-pay" data-student-id="${student.id}" title="Quick 1-tap full payment">
+                  <button class="btn-action receipt-btn btn-quick-pay" data-student-id="${student.id}" style="flex: 1; min-width: 90px;" title="Confirm Full Payment">
                     ${getIcon('check', 14)} Full Pay
                   </button>
-                  <a href="${reminderUrl}" target="_blank" class="btn-action whatsapp-btn" title="Send WhatsApp Fee Reminder">
+                  <button class="btn-action receipt-btn btn-view-student-ledger" data-student-id="${student.id}" style="flex: 1; min-width: 85px;" title="View 12-Month Fee History">
+                    ${getIcon('calendar', 14)} History
+                  </button>
+                  <a href="${reminderUrl}" target="_blank" class="btn-action whatsapp-btn" style="padding: 0 10px;" title="Send WhatsApp Fee Reminder">
                     ${getIcon('whatsapp', 18)}
                   </a>
                 ` : `
-                  <button class="btn-action receipt-btn btn-view-receipt" data-record-id="${record ? record.id : ''}" style="flex: 2;">
-                    ${getIcon('printer', 14)} Print Receipt / Voucher
+                  <button class="btn-action receipt-btn btn-view-receipt" data-record-id="${record ? record.id : ''}" style="flex: 2; min-width: 140px;">
+                    ${getIcon('printer', 14)} Receipt Voucher
                   </button>
-                  <button class="btn-action primary btn-collect-payment" data-student-id="${student.id}" style="flex: 1;" title="Edit payment or add fine">
+                  <button class="btn-action receipt-btn btn-view-student-ledger" data-student-id="${student.id}" style="flex: 1.2; min-width: 85px;" title="View 12-Month Fee History">
+                    ${getIcon('calendar', 14)} History
+                  </button>
+                  <button class="btn-action primary btn-collect-payment" data-student-id="${student.id}" style="flex: 1; min-width: 70px;" title="Edit payment or add fine">
                     ${getIcon('edit', 14)} Edit
                   </button>
                 `}
@@ -275,7 +281,8 @@ export function renderFeeLedgerView(state, actions) {
 
   // Attach Collect Payment
   container.querySelectorAll('.btn-collect-payment').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const studentId = btn.getAttribute('data-student-id');
       actions.onOpenCollectFee(studentId);
     });
@@ -283,15 +290,28 @@ export function renderFeeLedgerView(state, actions) {
 
   // Attach Quick 1-tap Pay
   container.querySelectorAll('.btn-quick-pay').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const studentId = btn.getAttribute('data-student-id');
       actions.onQuickPay(studentId);
     });
   });
 
+  // Attach 12-Month History / Ledger
+  container.querySelectorAll('.btn-view-student-ledger').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const studentId = btn.getAttribute('data-student-id');
+      if (actions.onViewStudentLedger) {
+        actions.onViewStudentLedger(studentId);
+      }
+    });
+  });
+
   // Attach Receipt
   container.querySelectorAll('.btn-view-receipt').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const recordId = btn.getAttribute('data-record-id');
       actions.onOpenReceipt(recordId);
     });

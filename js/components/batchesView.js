@@ -37,12 +37,12 @@ export function renderBatchesView(state, actions) {
     ` : `
       <div style="display: flex; flex-direction: column; gap: 12px;">
         ${batches.map(batch => {
-          const batchStudents = students.filter(s => s.batchId === batch.id);
+          const batchStudents = students.filter(s => String(s.batchId) === String(batch.id));
           let bExpected = 0;
           let bCollected = 0;
 
           batchStudents.forEach(s => {
-            const rec = feeRecords.find(r => r.studentId === s.id && r.month === activeMonth && r.year === activeYear);
+            const rec = feeRecords.find(r => String(r.studentId) === String(s.id) && Number(r.month) === Number(activeMonth) && Number(r.year) === Number(activeYear));
             const feeDue = rec ? rec.finalAmount : (s.monthlyFee - (s.discount || 0));
             const paid = rec ? rec.paidAmount : 0;
             bExpected += feeDue;

@@ -19,7 +19,7 @@ export function renderDefaultersView(state, actions) {
   let totalOverdue = 0;
 
   students.forEach(student => {
-    const record = feeRecords.find(r => r.studentId === student.id && r.month === activeMonth && r.year === activeYear);
+    const record = feeRecords.find(r => String(r.studentId) === String(student.id) && Number(r.month) === Number(activeMonth) && Number(r.year) === Number(activeYear));
     const baseFee = student.monthlyFee || 0;
     const discount = record ? (record.discount || 0) : (student.discount || 0);
     const fine = record ? (record.fine || 0) : 0;
@@ -119,12 +119,18 @@ export function renderDefaultersView(state, actions) {
               </div>
 
               <!-- Action buttons -->
-              <div class="fee-card-actions">
-                <a href="${reminderUrl}" target="_blank" class="btn-action primary" style="background: #25d366;" title="Send WhatsApp message to parent">
+              <div class="fee-card-actions" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                <a href="${reminderUrl}" target="_blank" class="btn-action primary" style="background: #25d366; flex: 1.2; min-width: 140px;" title="Send WhatsApp message to parent">
                   ${getIcon('whatsapp', 16)} WhatsApp Reminder
                 </a>
-                <button class="btn-action receipt-btn btn-collect-from-defaulters" data-student-id="${student.id}">
+                <button class="btn-action primary btn-collect-from-defaulters" data-student-id="${student.id}" style="flex: 1; min-width: 100px;">
                   ${getIcon('dollar', 14)} Collect Now
+                </button>
+                <button class="btn-action receipt-btn btn-quick-pay-defaulters" data-student-id="${student.id}" style="flex: 1; min-width: 85px;" title="Confirm Full Payment">
+                  ${getIcon('check', 14)} Full Pay
+                </button>
+                <button class="btn-action receipt-btn btn-view-defaulter-history" data-student-id="${student.id}" style="flex: 1; min-width: 85px;" title="View 12-Month Fee History">
+                  ${getIcon('calendar', 14)} History
                 </button>
               </div>
             </div>
@@ -134,10 +140,36 @@ export function renderDefaultersView(state, actions) {
     `}
   `;
 
+  // Attach Collect Now
   container.querySelectorAll('.btn-collect-from-defaulters').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const studentId = btn.getAttribute('data-student-id');
-      actions.onOpenCollectFee(studentId);
+      if (actions.onOpenCollectFee) {
+        actions.onOpenCollectFee(studentId);
+      }
+    });
+  });
+
+  // Attach Full Pay
+  container.querySelectorAll('.btn-quick-pay-defaulters').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const studentId = btn.getAttribute('data-student-id');
+      if (actions.onQuickPay) {
+        actions.onQuickPay(studentId);
+      }
+    });
+  });
+
+  // Attach 12-Month History
+  container.querySelectorAll('.btn-view-defaulter-history').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const studentId = btn.getAttribute('data-student-id');
+      if (actions.onViewStudentLedger) {
+        actions.onViewStudentLedger(studentId);
+      }
     });
   });
 }

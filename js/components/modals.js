@@ -2,6 +2,7 @@
 import { formatCurrency, generateReceiptNo, getWhatsAppReceiptUrl, formatDate } from '../utils.js';
 import { MONTHS } from '../data.js';
 import { getIcon } from '../icons.js';
+import { generateAndDownloadReceiptPDF } from '../pdfService.js';
 
 export function closeModal() {
   const overlay = document.getElementById('modalOverlay');
@@ -13,18 +14,24 @@ export function closeModal() {
 }
 
 // 1. Collect Fee Payment Bottom Sheet Modal
-export function openCollectFeeModal(state, studentId, onSave) {
+export function openCollectFeeModal(state, studentId, onSave, targetMonth = null, targetYear = null) {
   const overlay = document.getElementById('modalOverlay');
   const sheet = document.getElementById('modalSheet');
   if (!overlay || !sheet) return;
 
-  const { students, batches, school, feeRecords, activeMonth, activeYear } = state;
-  const currency = school.currency || '$';
-  const student = students.find(s => s.id === studentId);
-  if (!student) return;
+  const { students, batches, school, feeRecords } = state;
+  const payMonthNum = targetMonth !== null ? Number(targetMonth) : state.activeMonth;
+  const payYearNum = targetYear !== null ? Number(targetYear) : state.activeYear;
 
-  const batch = batches.find(b => b.id === student.batchId) || { name: 'General' };
-  const existingRecord = feeRecords.find(r => r.studentId === student.id && r.month === activeMonth && r.year === activeYear);
+  const currency = school.currency || '$';
+  const student = students.find(s => String(s.id).trim() === String(studentId).trim());
+  if (!student) {
+    alert('Student record not found');
+    return;
+  }
+
+  const batch = batches.find(b => String(b.id) === String(student.batchId)) || { name: 'General' };
+  const existingRecord = feeRecords.find(r => String(r.studentId) === String(student.id) && Number(r.month) === payMonthNum && Number(r.year) === payYearNum);
 
   const baseFee = student.monthlyFee || 0;
   const initDiscount = existingRecord ? (existingRecord.discount || 0) : (student.discount || 0);
@@ -32,7 +39,7 @@ export function openCollectFeeModal(state, studentId, onSave) {
   const initFinalDue = existingRecord ? existingRecord.finalAmount : Math.max(0, baseFee - initDiscount + initFine);
   const initPaid = existingRecord ? (existingRecord.paidAmount || 0) : initFinalDue;
   const todayStr = new Date().toISOString().slice(0, 10);
-  const defaultReceipt = existingRecord && existingRecord.receiptNo ? existingRecord.receiptNo : generateReceiptNo(activeYear, activeMonth);
+  const defaultReceipt = existingRecord && existingRecord.receiptNo ? existingRecord.receiptNo : generateReceiptNo(payYearNum, payMonthNum);
 
   sheet.innerHTML = `
     <div class="modal-drag-handle"></div>
@@ -63,13 +70,13 @@ export function openCollectFeeModal(state, studentId, onSave) {
           <label class="form-label">Month</label>
           <select class="form-select" id="payMonth">
             ${MONTHS.map(m => `
-              <option value="${m.index}" ${m.index === activeMonth ? 'selected' : ''}>${m.name}</option>
+              <option value="${m.index}" ${m.index === payMonthNum ? 'selected' : ''}>${m.name}</option>
             `).join('')}
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">Year</label>
-          <input type="number" class="form-input" id="payYear" value="${activeYear}">
+          <input type="number" class="form-input" id="payYear" value="${payYearNum}">
         </div>
       </div>
 
@@ -108,7 +115,7 @@ export function openCollectFeeModal(state, studentId, onSave) {
           <select class="form-select" id="payMode">
             <option value="Cash" ${existingRecord && existingRecord.paymentMode === 'Cash' ? 'selected' : ''}>Cash</option>
             <option value="Online Banking" ${existingRecord && existingRecord.paymentMode === 'Online Banking' ? 'selected' : ''}>Online Banking / Transfer</option>
-            <option value="Mobile Wallet (EasyPaisa/JazzCash)" ${existingRecord && existingRecord.paymentMode?.includes('Wallet') ? 'selected' : ''}>Mobile Wallet</option>
+            <option value="Mobile Wallet (EasyPaisa/JazzCash)" ${existingRecord && existingRecord.paymentMode?.includes('Wallet') ? 'selected' : ''}>Mobile Wallet (EasyPaisa/JazzCash)</option>
             <option value="Card / POS" ${existingRecord && existingRecord.paymentMode === 'Card / POS' ? 'selected' : ''}>Credit / Debit Card</option>
             <option value="Cheque" ${existingRecord && existingRecord.paymentMode === 'Cheque' ? 'selected' : ''}>Cheque</option>
           </select>
@@ -135,18 +142,17 @@ export function openCollectFeeModal(state, studentId, onSave) {
   // Real-time Net Due calculation
   const discountInput = document.getElementById('payDiscount');
   const fineInput = document.getElementById('payFine');
-  const amountInput = document.getElementById('payAmount');
   const displayNetDue = document.getElementById('displayNetDue');
 
   const recalculate = () => {
-    const disc = Number(discountInput.value) || 0;
-    const fine = Number(fineInput.value) || 0;
+    const disc = Number(discountInput?.value) || 0;
+    const fine = Number(fineInput?.value) || 0;
     const net = Math.max(0, baseFee - disc + fine);
-    displayNetDue.innerText = formatCurrency(net, currency);
+    if (displayNetDue) displayNetDue.innerText = formatCurrency(net, currency);
   };
 
-  discountInput.addEventListener('input', recalculate);
-  fineInput.addEventListener('input', recalculate);
+  discountInput?.addEventListener('input', recalculate);
+  fineInput?.addEventListener('input', recalculate);
 
   document.getElementById('btnModalClose')?.addEventListener('click', closeModal);
 
@@ -187,8 +193,105 @@ export function openCollectFeeModal(state, studentId, onSave) {
       remarks
     };
 
-    onSave(record);
     closeModal();
+    onSave(record);
+  });
+}
+
+// 1.1 Confirm Full Quick Payment Modal (1-Tap Settle)
+export function openQuickPayModal(state, studentId, onSave) {
+  const overlay = document.getElementById('modalOverlay');
+  const sheet = document.getElementById('modalSheet');
+  if (!overlay || !sheet) return;
+
+  const { students, batches, school, feeRecords, activeMonth, activeYear } = state;
+  const currency = school.currency || '$';
+  const student = students.find(s => String(s.id).trim() === String(studentId).trim());
+  if (!student) {
+    alert('Student record not found');
+    return;
+  }
+
+  const batch = batches.find(b => String(b.id) === String(student.batchId)) || { name: 'General' };
+  const existingRecord = feeRecords.find(r => String(r.studentId) === String(student.id) && Number(r.month) === activeMonth && Number(r.year) === activeYear);
+
+  const monthObj = MONTHS.find(m => m.index === activeMonth) || { name: 'Month' };
+  const baseFee = student.monthlyFee || 0;
+  const discount = existingRecord ? (existingRecord.discount || 0) : (student.discount || 0);
+  const fine = existingRecord ? (existingRecord.fine || 0) : 0;
+  const finalDue = existingRecord ? existingRecord.finalAmount : Math.max(0, baseFee - discount + fine);
+  const alreadyPaid = existingRecord ? (existingRecord.paidAmount || 0) : 0;
+  const amountToPay = Math.max(0, finalDue - alreadyPaid);
+
+  sheet.innerHTML = `
+    <div class="modal-drag-handle"></div>
+    <div class="modal-title-row">
+      <div class="modal-title">Confirm Full Payment</div>
+      <button class="modal-close-btn" id="btnModalClose">${getIcon('close', 18)}</button>
+    </div>
+
+    <div style="background: var(--surface-bg); padding: 14px; border-radius: var(--radius-sm); margin-bottom: 16px; border: 1px solid var(--surface-border);">
+      <div style="font-weight: 800; font-size: 16px; color: var(--text-primary);">${student.name}</div>
+      <div style="font-size: 12px; color: var(--text-secondary); margin-top: 3px;">
+        Roll: <strong>${student.rollNo}</strong> • Class: <strong>${batch.name}</strong>
+      </div>
+      <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 13px; color: var(--text-secondary);">Fee Month:</span>
+        <strong style="font-size: 14px; color: var(--primary);">${monthObj.name} ${activeYear}</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+        <span style="font-size: 13px; color: var(--text-secondary);">Full Amount Due:</span>
+        <strong style="font-size: 20px; color: var(--success);">${formatCurrency(amountToPay, currency)}</strong>
+      </div>
+    </div>
+
+    <form id="quickPayForm">
+      <div class="form-group">
+        <label class="form-label">Payment Mode</label>
+        <select class="form-select" id="quickPayMode">
+          <option value="Cash">Cash</option>
+          <option value="Online Banking">Online Banking / Bank Transfer</option>
+          <option value="Mobile Wallet (EasyPaisa/JazzCash)">EasyPaisa / JazzCash</option>
+          <option value="Card">Card</option>
+        </select>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 18px;">
+        <button type="button" class="btn-action receipt-btn" id="btnCancelQuickPay" style="flex: 1; padding: 12px;">
+          Cancel
+        </button>
+        <button type="submit" class="btn-action primary" style="flex: 2; padding: 12px; background: var(--success); font-size: 14px;">
+          ${getIcon('check', 18)} Mark as Paid (${formatCurrency(amountToPay, currency)})
+        </button>
+      </div>
+    </form>
+  `;
+
+  overlay.classList.remove('hidden');
+  document.getElementById('btnModalClose')?.addEventListener('click', closeModal);
+  document.getElementById('btnCancelQuickPay')?.addEventListener('click', closeModal);
+
+  document.getElementById('quickPayForm')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const mode = document.getElementById('quickPayMode').value;
+    const record = {
+      id: existingRecord ? existingRecord.id : `fee-${student.id}-${activeYear}-${activeMonth}`,
+      studentId: student.id,
+      month: activeMonth,
+      year: activeYear,
+      baseAmount: baseFee,
+      discount,
+      fine,
+      finalAmount: finalDue,
+      paidAmount: finalDue,
+      status: 'PAID',
+      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentMode: mode,
+      receiptNo: existingRecord?.receiptNo || generateReceiptNo(activeYear, activeMonth),
+      remarks: 'Full quick cash settlement'
+    };
+    closeModal();
+    onSave(record);
   });
 }
 
@@ -200,11 +303,14 @@ export function openReceiptModal(state, recordId) {
 
   const { students, batches, school, feeRecords } = state;
   const currency = school.currency || '$';
-  const record = feeRecords.find(r => r.id === recordId);
-  if (!record) return;
+  const record = feeRecords.find(r => String(r.id).trim() === String(recordId).trim());
+  if (!record) {
+    alert('Receipt record not found');
+    return;
+  }
 
-  const student = students.find(s => s.id === record.studentId) || { name: 'Student', rollNo: 'N/A' };
-  const batch = batches.find(b => b.id === student.batchId) || { name: 'General' };
+  const student = students.find(s => String(s.id).trim() === String(record.studentId).trim()) || { name: 'Student', rollNo: 'N/A' };
+  const batch = batches.find(b => String(b.id) === String(student.batchId)) || { name: 'General' };
   const monthObj = MONTHS.find(m => m.index === record.month) || { name: 'Month' };
   const balance = Math.max(0, (record.finalAmount || 0) - (record.paidAmount || 0));
   const whatsappUrl = getWhatsAppReceiptUrl(school, student, record, monthObj.name);
@@ -298,22 +404,42 @@ export function openReceiptModal(state, recordId) {
       </div>
     </div>
 
-    <!-- Actions: Print and WhatsApp Share -->
-    <div class="receipt-actions">
-      <a href="${whatsappUrl}" target="_blank" class="btn-action primary" style="background: #25d366; text-decoration: none;">
-        ${getIcon('whatsapp', 18)} WhatsApp to Parent
-      </a>
-      <button class="btn-action receipt-btn" id="btnPrintReceipt">
-        ${getIcon('printer', 18)} Print / PDF
+    <!-- Actions: PDF Download, WhatsApp and Print -->
+    <div class="receipt-actions" style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
+      <button class="btn-action primary" id="btnDownloadPDF" style="background: var(--primary); padding: 12px; font-size: 13px;">
+        ${getIcon('download', 18)} Save / Download PDF Receipt
       </button>
+      <div style="display: flex; gap: 8px;">
+        <a href="${whatsappUrl}" target="_blank" class="btn-action" style="flex: 1; background: #25d366; color: #ffffff; text-decoration: none; padding: 10px;">
+          ${getIcon('whatsapp', 18)} WhatsApp
+        </a>
+        <button class="btn-action receipt-btn" id="btnPrintReceipt" style="flex: 1; padding: 10px;">
+          ${getIcon('printer', 18)} Print Slip
+        </button>
+      </div>
     </div>
   `;
 
   overlay.classList.remove('hidden');
 
   document.getElementById('btnModalClose')?.addEventListener('click', closeModal);
+
+  // PDF Generator Button
+  document.getElementById('btnDownloadPDF')?.addEventListener('click', () => {
+    generateAndDownloadReceiptPDF(school, student, record, batch, monthObj.name);
+  });
+
+  // Print Button with PDF Fallback
   document.getElementById('btnPrintReceipt')?.addEventListener('click', () => {
-    window.print();
+    try {
+      if (typeof window.print === 'function') {
+        window.print();
+      } else {
+        generateAndDownloadReceiptPDF(school, student, record, batch, monthObj.name);
+      }
+    } catch {
+      generateAndDownloadReceiptPDF(school, student, record, batch, monthObj.name);
+    }
   });
 }
 
@@ -627,79 +753,221 @@ export function openEditSchoolModal(state, onSave) {
   });
 }
 
-// 6. Student Full 12-Month Fee Ledger Modal
-export function openStudentLedgerModal(state, studentId, onCollectFee) {
+// 6. Comprehensive Student Annual Fee Record Card / Academic Ledger
+export function openStudentLedgerModal(state, studentId, onCollectFee, onOpenReceipt, initialYear = null) {
   const overlay = document.getElementById('modalOverlay');
   const sheet = document.getElementById('modalSheet');
   if (!overlay || !sheet) return;
 
-  const { students, batches, school, feeRecords, activeYear } = state;
+  const { students, batches, school, feeRecords } = state;
   const currency = school.currency || '$';
-  const student = students.find(s => s.id === studentId);
-  if (!student) return;
+  const student = students.find(s => String(s.id).trim() === String(studentId).trim());
+  if (!student) {
+    alert('Student record not found');
+    return;
+  }
 
-  const batch = batches.find(b => b.id === student.batchId) || { name: 'General' };
+  let selectedYear = initialYear ? Number(initialYear) : (state.activeYear || new Date().getFullYear());
+  const batch = batches.find(b => String(b.id) === String(student.batchId)) || { name: 'General' };
 
-  sheet.innerHTML = `
-    <div class="modal-drag-handle"></div>
-    <div class="modal-title-row">
-      <div class="modal-title">Student Fee Ledger</div>
-      <button class="modal-close-btn" id="btnModalClose">${getIcon('close', 18)}</button>
-    </div>
+  const renderLedger = () => {
+    // 12-month metrics calculation
+    let totalYearDue = 0;
+    let totalYearPaid = 0;
+    let paidCount = 0;
+    let partialCount = 0;
+    let unpaidCount = 0;
 
-    <div style="background: var(--surface-bg); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 14px;">
-      <div style="font-size: 16px; font-weight: 800;">${student.name}</div>
-      <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
-        Roll: <strong>${student.rollNo}</strong> • ${batch.name} • Monthly: <strong>${formatCurrency(student.monthlyFee, currency)}</strong>
+    const monthlyBreakdown = MONTHS.map(m => {
+      const record = feeRecords.find(r => String(r.studentId) === String(student.id) && Number(r.month) === m.index && Number(r.year) === selectedYear);
+      const baseFee = student.monthlyFee || 0;
+      const discount = record ? (record.discount || 0) : (student.discount || 0);
+      const fine = record ? (record.fine || 0) : 0;
+      const finalDue = record ? record.finalAmount : Math.max(0, baseFee - discount + fine);
+      const paid = record ? (record.paidAmount || 0) : 0;
+      const balance = Math.max(0, finalDue - paid);
+      const status = record ? record.status : 'UNPAID';
+
+      totalYearDue += finalDue;
+      totalYearPaid += paid;
+
+      if (status === 'PAID') paidCount++;
+      else if (status === 'PARTIAL') partialCount++;
+      else unpaidCount++;
+
+      return {
+        month: m,
+        record,
+        finalDue,
+        paid,
+        balance,
+        status
+      };
+    });
+
+    const totalOutstanding = Math.max(0, totalYearDue - totalYearPaid);
+
+    sheet.innerHTML = `
+      <div class="modal-drag-handle"></div>
+      <div class="modal-title-row">
+        <div>
+          <div class="modal-title" style="font-size: 17px;">Annual Fee Record Card</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 1px;">Month-by-month payment tracking</div>
+        </div>
+        <button class="modal-close-btn" id="btnModalClose">${getIcon('close', 18)}</button>
       </div>
-      <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
-        Parent: ${student.parentName || 'Parent'} (${student.parentPhone || 'No Phone'})
-      </div>
-    </div>
 
-    <div style="margin-bottom: 8px; font-size: 13px; font-weight: 700; color: var(--text-primary);">
-      12-Month Academic Ledger (${activeYear})
-    </div>
-
-    <div style="display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto;">
-      ${MONTHS.map(m => {
-        const record = feeRecords.find(r => r.studentId === student.id && r.month === m.index && r.year === activeYear);
-        const due = record ? record.finalAmount : (student.monthlyFee - (student.discount || 0));
-        const paid = record ? record.paidAmount : 0;
-        const status = record ? record.status : 'UNPAID';
-        let statusColor = 'var(--danger)';
-        if (status === 'PAID') statusColor = 'var(--success)';
-        if (status === 'PARTIAL') statusColor = 'var(--warning)';
-
-        return `
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px solid var(--surface-border); border-radius: var(--radius-sm); background: #ffffff;">
-            <div>
-              <div style="font-weight: 700; font-size: 13px;">${m.name}</div>
-              <div style="font-size: 11px; color: var(--text-secondary);">
-                Due: ${formatCurrency(due, currency)} • Paid: ${formatCurrency(paid, currency)}
-              </div>
+      <!-- Student Banner -->
+      <div style="background: var(--surface-bg); padding: 12px 14px; border-radius: var(--radius-sm); margin-bottom: 12px; border: 1px solid var(--surface-border);">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <div style="font-size: 16px; font-weight: 800; color: var(--text-primary);">${student.name}</div>
+            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+              Roll: <strong>${student.rollNo}</strong> • Class: <strong>${batch.name}</strong>
             </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span class="status-chip ${status.toLowerCase()}">${status}</span>
-              ${status !== 'PAID' ? `
-                <button class="header-action-btn btn-ledger-collect" data-month="${m.index}" title="Collect fee for this month" style="width: 28px; height: 28px; color: var(--primary);">
-                  ${getIcon('plus', 14)}
-                </button>
-              ` : ''}
+            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+              Parent: ${student.parentName || 'Parent'} (${student.parentPhone || 'No Phone'})
             </div>
           </div>
-        `;
-      }).join('')}
-    </div>
-  `;
+          <div style="text-align: right;">
+            <div style="font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Standard Fee</div>
+            <div style="font-weight: 800; font-size: 14px; color: var(--primary);">${formatCurrency(student.monthlyFee || 0, currency)}/mo</div>
+          </div>
+        </div>
+      </div>
 
-  overlay.classList.remove('hidden');
-  document.getElementById('btnModalClose')?.addEventListener('click', closeModal);
+      <!-- Year Selector Bar -->
+      <div style="display: flex; align-items: center; justify-content: space-between; background: #ffffff; border: 1px solid var(--surface-border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px;">
+        <button class="month-nav-btn" id="btnPrevLedgerYear" title="Previous Year" style="width: 32px; height: 32px; border: 1px solid var(--surface-border); border-radius: var(--radius-sm); background: var(--surface-bg); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+          ${getIcon('chevronLeft', 18)}
+        </button>
+        <div style="font-weight: 800; font-size: 15px; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+          ${getIcon('calendar', 16)} Session / Year: ${selectedYear}
+        </div>
+        <button class="month-nav-btn" id="btnNextLedgerYear" title="Next Year" style="width: 32px; height: 32px; border: 1px solid var(--surface-border); border-radius: var(--radius-sm); background: var(--surface-bg); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+          ${getIcon('chevronRight', 18)}
+        </button>
+      </div>
 
-  sheet.querySelectorAll('.btn-ledger-collect').forEach(btn => {
-    btn.addEventListener('click', () => {
-      closeModal();
-      onCollectFee(student.id);
+      <!-- Annual Summary Card -->
+      <div style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: #ffffff; padding: 12px 14px; border-radius: var(--radius-sm); margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 11px; opacity: 0.85; text-transform: uppercase; font-weight: 700;">Year ${selectedYear} Summary</div>
+            <div style="font-size: 17px; font-weight: 900; margin-top: 2px;">${paidCount} of 12 Months Paid</div>
+            <div style="font-size: 11px; opacity: 0.9; margin-top: 2px;">
+              ${unpaidCount > 0 ? `⚠️ ${unpaidCount} Months Missing / Unpaid` : '🎉 All 12 Months Fully Settled'}
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 10px; opacity: 0.85; text-transform: uppercase; font-weight: 700;">Total Overdue</div>
+            <div style="font-size: 18px; font-weight: 900; color: ${totalOutstanding > 0 ? '#fca5a5' : '#86efac'};">
+              ${formatCurrency(totalOutstanding, currency)}
+            </div>
+            <div style="font-size: 10px; opacity: 0.85;">Paid: ${formatCurrency(totalYearPaid, currency)}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 12-Month Month-by-Month Record List -->
+      <div style="display: flex; flex-direction: column; gap: 8px; max-height: 48vh; overflow-y: auto; padding-right: 2px;">
+        ${monthlyBreakdown.map(item => {
+          const { month, record, finalDue, paid, balance, status } = item;
+          let badgeBg = '#fef2f2';
+          let badgeColor = '#991b1b';
+          let badgeBorder = '#fecaca';
+          let statusText = 'MISSING / UNPAID';
+
+          if (status === 'PAID') {
+            badgeBg = '#ecfdf5';
+            badgeColor = '#065f46';
+            badgeBorder = '#a7f3d0';
+            statusText = 'PAID';
+          } else if (status === 'PARTIAL') {
+            badgeBg = '#fffbeb';
+            badgeColor = '#92400e';
+            badgeBorder = '#fde68a';
+            statusText = 'PARTIAL';
+          }
+
+          return `
+            <div style="border: 1px solid ${status === 'PAID' ? '#e2e8f0' : '#fecaca'}; border-left: 4px solid ${status === 'PAID' ? '#10b981' : (status === 'PARTIAL' ? '#f59e0b' : '#ef4444')}; border-radius: var(--radius-sm); padding: 10px 12px; background: #ffffff;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                  <div style="font-weight: 800; font-size: 13px; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                    <span>${month.name} ${selectedYear}</span>
+                    <span style="font-size: 10px; padding: 2px 7px; border-radius: 999px; background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; font-weight: 800;">
+                      ${statusText}
+                    </span>
+                  </div>
+                  <div style="font-size: 11px; color: var(--text-secondary); margin-top: 3px;">
+                    Fee Due: <strong>${formatCurrency(finalDue, currency)}</strong>
+                    ${paid > 0 ? ` • Paid: <strong style="color: var(--success);">${formatCurrency(paid, currency)}</strong>` : ''}
+                    ${balance > 0 ? ` • Remaining: <strong style="color: var(--danger);">${formatCurrency(balance, currency)}</strong>` : ''}
+                  </div>
+                  ${record && record.paymentDate ? `
+                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">
+                      Paid on: ${record.paymentDate} (${record.paymentMode || 'Cash'}) • Rcpt: ${record.receiptNo || '-'}
+                    </div>
+                  ` : ''}
+                </div>
+
+                <!-- Month Action Button -->
+                <div style="margin-left: 8px;">
+                  ${status === 'PAID' ? `
+                    <button class="btn-action receipt-btn btn-history-voucher" data-record-id="${record.id}" style="padding: 5px 10px; font-size: 11px; white-space: nowrap;">
+                      ${getIcon('printer', 13)} Voucher
+                    </button>
+                  ` : `
+                    <button class="btn-action primary btn-history-collect" data-month="${month.index}" data-year="${selectedYear}" style="padding: 5px 10px; font-size: 11px; white-space: nowrap; background: ${status === 'PARTIAL' ? '#f59e0b' : 'var(--primary)'};">
+                      ${getIcon('dollar', 13)} Pay Month
+                    </button>
+                  `}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    overlay.classList.remove('hidden');
+
+    document.getElementById('btnModalClose')?.addEventListener('click', closeModal);
+
+    // Year Switchers
+    document.getElementById('btnPrevLedgerYear')?.addEventListener('click', () => {
+      selectedYear--;
+      renderLedger();
     });
-  });
+    document.getElementById('btnNextLedgerYear')?.addEventListener('click', () => {
+      selectedYear++;
+      renderLedger();
+    });
+
+    // Pay specific month button
+    sheet.querySelectorAll('.btn-history-collect').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const m = Number(btn.getAttribute('data-month'));
+        const y = Number(btn.getAttribute('data-year'));
+        closeModal();
+        if (typeof onCollectFee === 'function') {
+          onCollectFee(student.id, m, y);
+        }
+      });
+    });
+
+    // View voucher button
+    sheet.querySelectorAll('.btn-history-voucher').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const rId = btn.getAttribute('data-record-id');
+        closeModal();
+        if (typeof onOpenReceipt === 'function') {
+          onOpenReceipt(rId);
+        }
+      });
+    });
+  };
+
+  renderLedger();
 }
