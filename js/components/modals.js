@@ -3,6 +3,7 @@ import { formatCurrency, generateReceiptNo, getWhatsAppReceiptUrl, formatDate } 
 import { MONTHS } from '../data.js';
 import { getIcon } from '../icons.js';
 import { generateAndDownloadReceiptPDF } from '../pdfService.js';
+import { saveReceiptImageToGallery, shareReceiptImage } from '../imageReceiptService.js';
 
 export function closeModal() {
   const overlay = document.getElementById('modalOverlay');
@@ -404,17 +405,19 @@ export function openReceiptModal(state, recordId) {
       </div>
     </div>
 
-    <!-- Actions: PDF Download, WhatsApp and Print -->
+    <!-- Actions: Save to Gallery, Share Picture / WhatsApp, and PDF Backup -->
     <div class="receipt-actions" style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
-      <button class="btn-action primary" id="btnDownloadPDF" style="background: var(--primary); padding: 12px; font-size: 13px;">
-        ${getIcon('download', 18)} Save / Download PDF Receipt
+      <button class="btn-action primary" id="btnSaveToGallery" style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); padding: 14px 16px; font-size: 14px; font-weight: 800; border-radius: 12px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35); display: flex; align-items: center; justify-content: center; gap: 8px; color: #ffffff; border: none; cursor: pointer;">
+        ${getIcon('download', 20)}
+        <span>Save Picture to Phone Gallery</span>
       </button>
+
       <div style="display: flex; gap: 8px;">
-        <a href="${whatsappUrl}" target="_blank" class="btn-action" style="flex: 1; background: #25d366; color: #ffffff; text-decoration: none; padding: 10px;">
-          ${getIcon('whatsapp', 18)} WhatsApp
-        </a>
-        <button class="btn-action receipt-btn" id="btnPrintReceipt" style="flex: 1; padding: 10px;">
-          ${getIcon('printer', 18)} Print Slip
+        <button class="btn-action" id="btnSharePicture" style="flex: 1.2; background: #25d366; color: #ffffff; padding: 12px 10px; font-size: 13px; font-weight: 700; border-radius: 10px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          ${getIcon('whatsapp', 18)} Share / WhatsApp
+        </button>
+        <button class="btn-action receipt-btn" id="btnDownloadPDF" style="flex: 0.9; padding: 12px 10px; font-size: 13px; font-weight: 700; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          ${getIcon('printer', 16)} Save PDF
         </button>
       </div>
     </div>
@@ -424,22 +427,19 @@ export function openReceiptModal(state, recordId) {
 
   document.getElementById('btnModalClose')?.addEventListener('click', closeModal);
 
-  // PDF Generator Button
-  document.getElementById('btnDownloadPDF')?.addEventListener('click', () => {
-    generateAndDownloadReceiptPDF(school, student, record, batch, monthObj.name);
+  // 1. Primary Action: Save Picture directly to Android Gallery / Downloads
+  document.getElementById('btnSaveToGallery')?.addEventListener('click', () => {
+    saveReceiptImageToGallery(school, student, record, batch, monthObj.name);
   });
 
-  // Print Button with PDF Fallback
-  document.getElementById('btnPrintReceipt')?.addEventListener('click', () => {
-    try {
-      if (typeof window.print === 'function') {
-        window.print();
-      } else {
-        generateAndDownloadReceiptPDF(school, student, record, batch, monthObj.name);
-      }
-    } catch {
-      generateAndDownloadReceiptPDF(school, student, record, batch, monthObj.name);
-    }
+  // 2. Share Picture to WhatsApp / Android Share Sheet
+  document.getElementById('btnSharePicture')?.addEventListener('click', () => {
+    shareReceiptImage(school, student, record, batch, monthObj.name);
+  });
+
+  // 3. Save as PDF Backup
+  document.getElementById('btnDownloadPDF')?.addEventListener('click', () => {
+    generateAndDownloadReceiptPDF(school, student, record, batch, monthObj.name);
   });
 }
 
